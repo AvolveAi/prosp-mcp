@@ -46,7 +46,7 @@ pip install prosp-mcp
 Or from source:
 
 ```bash
-git clone https://github.com/jamescampbell/prosp-mcp.git
+git clone https://github.com/AvolveAi/prosp-mcp.git
 cd prosp-mcp
 pip install -e .
 ```
