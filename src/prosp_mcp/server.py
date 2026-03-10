@@ -14,7 +14,6 @@ Usage:
 from __future__ import annotations
 
 import json
-import os
 import signal
 import sys
 from typing import Any
@@ -36,11 +35,14 @@ Tools: add_lead, check_api_key, get_server_info
 Use check_api_key first to verify your connection before adding leads.
 """
 
-# Initialize FastMCP server
+# Initialize FastMCP server with production settings
 mcp = FastMCP(
     name=SERVER_NAME,
     version=SERVER_VERSION,
     instructions=SERVER_INSTRUCTIONS,
+    on_duplicate="error",
+    mask_error_details=True,
+    strict_input_validation=True,
 )
 
 
@@ -53,10 +55,27 @@ def register_tools():
         "check_api_key": {"readOnlyHint": True},
     }
 
+    TOOL_META: dict[str, dict[str, Any]] = {
+        "add_lead": {
+            "title": "Add Lead",
+            "tags": {"leads", "write"},
+        },
+        "check_api_key": {
+            "title": "Check API Key",
+            "tags": {"health", "read"},
+        },
+    }
+
     for tool_func in tools:
         tool_name = tool_func.__name__
         annotations = TOOL_ANNOTATIONS.get(tool_name, {})
-        mcp.tool(name=tool_name, annotations=annotations)(tool_func)
+        meta = TOOL_META.get(tool_name, {})
+        mcp.tool(
+            name=tool_name,
+            title=meta.get("title"),
+            tags=meta.get("tags"),
+            annotations=annotations,
+        )(tool_func)
 
     print(f"[Prosp MCP] Registered {len(tools)} tools", file=sys.stderr)
 
@@ -67,6 +86,8 @@ register_tools()
 
 @mcp.tool(
     name="get_server_info",
+    title="Get Server Info",
+    tags={"health", "read"},
     annotations={"readOnlyHint": True},
 )
 async def get_server_info() -> str:

@@ -7,7 +7,9 @@ Tools for managing leads in Prosp campaigns and lists.
 from __future__ import annotations
 
 import json
-from typing import Any, Optional
+from typing import Any
+
+from fastmcp.exceptions import ToolError
 
 from ..client import get_client
 from ..models.leads import AddLeadInput
@@ -16,6 +18,12 @@ from ..models.leads import AddLeadInput
 async def add_lead(params: AddLeadInput) -> str:
     """Add a lead to a Prosp list and campaign by LinkedIn URL."""
     client = get_client()
+
+    if not client.has_api_key:
+        raise ToolError(
+            "API key not configured. Use check_api_key to diagnose, "
+            "or set PROSP_API_KEY environment variable."
+        )
 
     body: dict[str, Any] = {
         "linkedin_url": params.linkedin_url,
@@ -32,20 +40,12 @@ async def add_lead(params: AddLeadInput) -> str:
             {"success": True, "data": result, "message": "Lead added successfully"},
             indent=2,
         )
-    except ValueError as e:
-        return json.dumps(
-            {
-                "success": False,
-                "error": str(e),
-                "message": "API key not configured. Use check_api_key to diagnose.",
-            },
-            indent=2,
-        )
+    except ConnectionError as e:
+        raise ToolError(f"Cannot reach Prosp API: {e}") from e
+    except TimeoutError as e:
+        raise ToolError(f"Prosp API timed out: {e}") from e
     except Exception as e:
-        return json.dumps(
-            {"success": False, "error": str(e), "message": "Failed to add lead"},
-            indent=2,
-        )
+        raise ToolError(f"Failed to add lead: {e}") from e
 
 
 async def check_api_key() -> str:
@@ -53,18 +53,14 @@ async def check_api_key() -> str:
     client = get_client()
 
     if not client.has_api_key:
-        return json.dumps(
-            {
-                "success": False,
-                "error": "No API key configured",
-                "message": "Set PROSP_API_KEY environment variable or pass --api-key on startup.",
-            },
-            indent=2,
+        raise ToolError(
+            "No API key configured. Set PROSP_API_KEY environment variable "
+            "or pass --api-key on startup."
         )
 
     try:
-        # Use a minimal POST to /leads with invalid data to test auth
-        # A 400 (bad request) means auth worked; 401/403 means bad key
+        # Use a minimal POST to /leads with invalid data to test auth.
+        # A 400 (bad request) means auth worked; 401/403 means bad key.
         await client.post("/leads", json={"linkedin_url": "", "list_id": "", "campaign_id": ""})
         return json.dumps(
             {"success": True, "message": "API key is valid. Prosp API is reachable."},
@@ -72,28 +68,18 @@ async def check_api_key() -> str:
         )
     except Exception as e:
         error_str = str(e)
-        # Auth errors
-        if "401" in error_str or "403" in error_str or "Unauthorized" in error_str.lower():
-            return json.dumps(
-                {
-                    "success": False,
-                    "error": "Invalid API key",
-                    "message": "The API key was rejected. Check your key at https://prosp.ai/settings",
-                },
-                indent=2,
-            )
-        # Connection errors mean API is down or unreachable
+        # Auth errors — key is wrong
+        if "401" in error_str or "403" in error_str or "unauthorized" in error_str.lower():
+            raise ToolError(
+                "Invalid API key. Check your key at https://prosp.ai/settings"
+            ) from e
+        # Connection/timeout — network issue
         if isinstance(e, (ConnectionError, TimeoutError)):
-            return json.dumps(
-                {
-                    "success": False,
-                    "error": str(e),
-                    "message": "Cannot reach Prosp API. Check your network connection.",
-                },
-                indent=2,
-            )
-        # Any other error (including 400/422) means auth worked but request was invalid
-        # which is expected since we sent empty data — that's a pass
+            raise ToolError(
+                f"Cannot reach Prosp API: {e}. Check your network connection."
+            ) from e
+        # Any other error (400/422) means auth worked but request was invalid,
+        # which is expected since we sent empty data — that's a pass.
         return json.dumps(
             {"success": True, "message": "API key is valid. Prosp API is reachable."},
             indent=2,

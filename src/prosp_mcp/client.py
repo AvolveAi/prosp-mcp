@@ -24,9 +24,11 @@ class ProspClient:
     HTTP client for Prosp.ai API v1.
 
     Auth: API key is injected into the JSON request body (Prosp's pattern).
+    Uses a persistent httpx.AsyncClient for connection pooling.
     """
 
     _api_key: Optional[str] = field(default=None, repr=False)
+    _http: Optional[httpx.AsyncClient] = field(default=None, repr=False, init=False)
 
     def __post_init__(self):
         if not self._api_key:
@@ -40,6 +42,18 @@ class ProspClient:
     def set_api_key(self, api_key: str) -> None:
         """Set API key programmatically."""
         self._api_key = api_key
+
+    def _get_http_client(self) -> httpx.AsyncClient:
+        """Get or create the persistent HTTP client."""
+        if self._http is None or self._http.is_closed:
+            self._http = httpx.AsyncClient(timeout=DEFAULT_TIMEOUT)
+        return self._http
+
+    async def close(self) -> None:
+        """Close the HTTP client."""
+        if self._http is not None and not self._http.is_closed:
+            await self._http.aclose()
+            self._http = None
 
     async def request(
         self,
@@ -65,7 +79,6 @@ class ProspClient:
             )
 
         url = f"{PROSP_API_URL}{endpoint}"
-        request_timeout = timeout or DEFAULT_TIMEOUT
 
         # Inject api_key into JSON body for POST requests
         if method.upper() == "POST":
@@ -79,36 +92,37 @@ class ProspClient:
                 params = {}
             params["api_key"] = use_api_key
 
-        async with httpx.AsyncClient(timeout=request_timeout) as http:
-            try:
-                response = await http.request(
-                    method=method,
-                    url=url,
-                    params=params,
-                    json=json,
+        http = self._get_http_client()
+        try:
+            response = await http.request(
+                method=method,
+                url=url,
+                params=params,
+                json=json,
+                timeout=timeout or DEFAULT_TIMEOUT,
+            )
+
+            if response.status_code >= 400:
+                error_detail = self._parse_error(response)
+                raise httpx.HTTPStatusError(
+                    message=error_detail,
+                    request=response.request,
+                    response=response,
                 )
 
-                if response.status_code >= 400:
-                    error_detail = self._parse_error(response)
-                    raise httpx.HTTPStatusError(
-                        message=error_detail,
-                        request=response.request,
-                        response=response,
-                    )
+            if response.status_code == 204:
+                return {"success": True}
 
-                if response.status_code == 204:
-                    return {"success": True}
+            return response.json()
 
-                return response.json()
-
-            except httpx.TimeoutException as e:
-                raise TimeoutError(
-                    f"Request to Prosp API timed out after {request_timeout}s."
-                ) from e
-            except httpx.RequestError as e:
-                raise ConnectionError(
-                    f"Failed to connect to Prosp API: {e}"
-                ) from e
+        except httpx.TimeoutException as e:
+            raise TimeoutError(
+                f"Request to Prosp API timed out after {timeout or DEFAULT_TIMEOUT}s."
+            ) from e
+        except httpx.RequestError as e:
+            raise ConnectionError(
+                f"Failed to connect to Prosp API: {e}"
+            ) from e
 
     def _parse_error(self, response: httpx.Response) -> str:
         """Parse error response and return descriptive message."""
