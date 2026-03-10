@@ -1,0 +1,31 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "io.github.jamescampbell/prosp-mcp",
+  "title": "Prosp LinkedIn Automation",
+  "description": "MCP server for Prosp.ai LinkedIn outreach automation - manage leads, campaigns, and outreach sequences",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "prosp-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "PROSP_API_KEY",
+          "description": "Your Prosp API key (get it from https://prosp.ai/settings)",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "TOOL_CATEGORIES",
+          "description": "Comma-separated list of tool categories to load (leads). Defaults to all.",
+          "isRequired": false,
+          "isSecret": false
+        }
+      ]
+    }
+  ]
+}
