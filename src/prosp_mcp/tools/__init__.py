@@ -13,7 +13,7 @@ from typing import Callable
 
 def get_available_categories() -> list[str]:
     """Get list of available tool categories."""
-    return ["leads"]
+    return ["leads", "campaigns", "messaging"]
 
 
 def is_lazy_loading_enabled() -> bool:
@@ -41,6 +41,12 @@ def load_tools_for_category(category: str) -> list[Callable]:
     if category == "leads":
         from .leads import LEAD_TOOLS
         return LEAD_TOOLS
+    if category == "campaigns":
+        from .campaigns import CAMPAIGN_TOOLS
+        return CAMPAIGN_TOOLS
+    if category == "messaging":
+        from .messaging import MESSAGING_TOOLS
+        return MESSAGING_TOOLS
     return []
 
 

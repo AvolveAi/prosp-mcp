@@ -25,14 +25,17 @@ from .tools import get_all_tools, get_requested_categories, is_lazy_loading_enab
 
 # Server metadata
 SERVER_NAME = "prosp-mcp"
-SERVER_VERSION = "0.1.0"
+SERVER_VERSION = "0.2.0"
 SERVER_INSTRUCTIONS = """Prosp.ai LinkedIn Automation MCP Server.
 
-Manage LinkedIn outreach leads and campaigns programmatically.
+Manage LinkedIn outreach: leads, campaigns, messaging, and analytics.
 
-Tools: add_lead, check_api_key, get_server_info
+Categories:
+- leads: add, remove, delete, list leads; check API key
+- campaigns: list, start, stop campaigns; get analytics
+- messaging: send messages, voice notes; get conversations
 
-Use check_api_key first to verify your connection before adding leads.
+Use check_api_key first to verify your connection.
 """
 
 # Initialize FastMCP server with production settings
@@ -45,26 +48,58 @@ mcp = FastMCP(
     strict_input_validation=True,
 )
 
+# Tool annotations keyed by function name
+TOOL_ANNOTATIONS: dict[str, dict[str, Any]] = {
+    # Leads — read
+    "check_api_key": {"readOnlyHint": True},
+    "get_leads_in_campaign": {"readOnlyHint": True},
+    "get_lead_stage": {"readOnlyHint": True},
+    # Leads — write
+    "add_lead": {"destructiveHint": False},
+    "add_lead_to_list": {"destructiveHint": False},
+    "add_existing_lead_to_campaign": {"destructiveHint": False},
+    "remove_lead_from_campaign": {"destructiveHint": True, "confirmationRequiredHint": True},
+    "delete_lead": {"destructiveHint": True, "confirmationRequiredHint": True},
+    # Campaigns — read
+    "get_all_campaigns": {"readOnlyHint": True},
+    "get_campaign_status": {"readOnlyHint": True},
+    "get_analytics": {"readOnlyHint": True},
+    # Campaigns — write
+    "start_campaign": {"destructiveHint": False, "confirmationRequiredHint": True},
+    "stop_campaign": {"destructiveHint": True, "confirmationRequiredHint": True},
+    # Messaging — write
+    "send_message": {"destructiveHint": False, "confirmationRequiredHint": True},
+    "send_voice_message": {"destructiveHint": False, "confirmationRequiredHint": True},
+    # Messaging — read
+    "get_conversation": {"readOnlyHint": True},
+}
+
+TOOL_META: dict[str, dict[str, Any]] = {
+    # Leads
+    "add_lead": {"title": "Add Lead to List & Campaign", "tags": {"leads", "write"}},
+    "add_lead_to_list": {"title": "Add Lead to List", "tags": {"leads", "write"}},
+    "add_existing_lead_to_campaign": {"title": "Add Existing Lead to Campaign", "tags": {"leads", "write"}},
+    "remove_lead_from_campaign": {"title": "Remove Lead from Campaign", "tags": {"leads", "write"}},
+    "delete_lead": {"title": "Delete Lead from Workspace", "tags": {"leads", "write"}},
+    "get_leads_in_campaign": {"title": "Get Leads in Campaign", "tags": {"leads", "read"}},
+    "get_lead_stage": {"title": "Get Lead Stage", "tags": {"leads", "read"}},
+    "check_api_key": {"title": "Check API Key", "tags": {"health", "read"}},
+    # Campaigns
+    "get_all_campaigns": {"title": "Get All Campaigns", "tags": {"campaigns", "read"}},
+    "get_campaign_status": {"title": "Get Campaign Status", "tags": {"campaigns", "read"}},
+    "start_campaign": {"title": "Start Campaign", "tags": {"campaigns", "write"}},
+    "stop_campaign": {"title": "Stop Campaign", "tags": {"campaigns", "write"}},
+    "get_analytics": {"title": "Get Analytics", "tags": {"campaigns", "read"}},
+    # Messaging
+    "send_message": {"title": "Send LinkedIn Message", "tags": {"messaging", "write"}},
+    "send_voice_message": {"title": "Send Voice Message", "tags": {"messaging", "write"}},
+    "get_conversation": {"title": "Get Conversation", "tags": {"messaging", "read"}},
+}
+
 
 def register_tools():
     """Register all tools with MCP annotations."""
     tools = get_all_tools()
-
-    TOOL_ANNOTATIONS: dict[str, dict[str, Any]] = {
-        "add_lead": {"destructiveHint": False},
-        "check_api_key": {"readOnlyHint": True},
-    }
-
-    TOOL_META: dict[str, dict[str, Any]] = {
-        "add_lead": {
-            "title": "Add Lead",
-            "tags": {"leads", "write"},
-        },
-        "check_api_key": {
-            "title": "Check API Key",
-            "tags": {"health", "read"},
-        },
-    }
 
     for tool_func in tools:
         tool_name = tool_func.__name__

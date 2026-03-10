@@ -1,6 +1,6 @@
 [project]
 name = "prosp-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "Prosp LinkedIn Automation MCP Server - Add leads to campaigns and manage LinkedIn outreach via Model Context Protocol"
 readme = "README.md"
 requires-python = ">=3.10"
